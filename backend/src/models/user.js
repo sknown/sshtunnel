@@ -1,36 +1,41 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+import { DataTypes } from 'sequelize';
+import sequelize from '../database/config.js';
+import bcrypt from 'bcryptjs';
 
-const userSchema = new mongoose.Schema({
+const User = sequelize.define('User', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
   username: {
-    type: String,
-    required: true,
+    type: DataTypes.STRING,
+    allowNull: false,
     unique: true,
-    trim: true,
-    minlength: 3
+    validate: {
+      len: [3, 50]
+    }
   },
   password: {
-    type: String,
-    required: true,
-    minlength: 6
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      len: [6, 100]
+    }
   }
 }, {
-  timestamps: true
-});
-
-// 在保存前对密码进行加密
-userSchema.pre('save', async function(next) {
-  if (this.isModified('password')) {
-    this.password = await bcrypt.hash(this.password, 8);
+  timestamps: true,
+  hooks: {
+    beforeSave: async (user) => {
+      if (user.changed('password')) {
+        user.password = await bcrypt.hash(user.password, 8);
+      }
+    }
   }
-  next();
 });
 
-// 验证密码
-userSchema.methods.comparePassword = async function(password) {
+User.prototype.comparePassword = async function(password) {
   return bcrypt.compare(password, this.password);
 };
 
-const User = mongoose.model('User', userSchema);
-
-module.exports = User;
+export default User;

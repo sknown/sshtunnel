@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Container, TextField, Button, Typography, Paper } from '@mui/material';
+import { API_BASE_URL } from '../config/constants';
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -11,18 +12,49 @@ export function RegisterPage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [validationErrors, setValidationErrors] = useState({
+    username: '',
+    password: '',
+    confirmPassword: ''
+  });
+
+  const validateForm = () => {
+    const errors = {
+      username: '',
+      password: '',
+      confirmPassword: ''
+    };
+    let isValid = true;
+
+    if (formData.username.length < 3 || formData.username.length > 50) {
+      errors.username = '用户名长度必须在3-50个字符之间';
+      isValid = false;
+    }
+
+    if (formData.password.length < 6 || formData.password.length > 100) {
+      errors.password = '密码长度必须在6-100个字符之间';
+      isValid = false;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      errors.confirmPassword = '两次输入的密码不一致';
+      isValid = false;
+    }
+
+    setValidationErrors(errors);
+    return isValid;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
-      setError('两次输入的密码不一致');
+    if (!validateForm()) {
       return;
     }
 
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('http://localhost:3000/api/auth/register', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -83,6 +115,8 @@ export function RegisterPage() {
               autoFocus
               value={formData.username}
               onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+              error={!!validationErrors.username}
+              helperText={validationErrors.username}
             />
             <TextField
               margin="normal"
@@ -95,6 +129,8 @@ export function RegisterPage() {
               autoComplete="new-password"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              error={!!validationErrors.password}
+              helperText={validationErrors.password}
             />
             <TextField
               margin="normal"
@@ -107,6 +143,8 @@ export function RegisterPage() {
               autoComplete="new-password"
               value={formData.confirmPassword}
               onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+              error={!!validationErrors.confirmPassword}
+              helperText={validationErrors.confirmPassword}
             />
             {error && (
               <Typography color="error" sx={{ mt: 2 }}>

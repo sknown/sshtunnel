@@ -1,24 +1,18 @@
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
 
-const auth = async (req, res, next) => {
+export const authenticateToken = async (req, res, next) => {
   try {
-    console.log('开始验证请求的认证token...');
     const token = req.header('Authorization')?.replace('Bearer ', '');
     
     if (!token) {
-      console.log('请求中未找到token');
       throw new Error();
     }
 
-    console.log('验证token的有效性...');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('token验证成功，用户ID:', decoded.userId);
-    req.user = { _id: decoded.userId };
+    const JWT_SECRET = process.env.JWT_SECRET || 'sshtunnel-secure-jwt-secret-2024';
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = { id: decoded.userId };
     next();
   } catch (error) {
-    console.log('token验证失败:', error.message);
     res.status(401).json({ message: '请先登录' });
   }
 };
-
-module.exports = auth;

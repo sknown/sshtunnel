@@ -1,8 +1,20 @@
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class FileService {
+  static instance = null;
+
+  static getInstance() {
+    if (!FileService.instance) {
+      FileService.instance = new FileService();
+    }
+    return FileService.instance;
+  }
   constructor() {
     this.uploadDir = path.join(__dirname, '../../uploads/keys');
     // 确保上传目录存在
@@ -57,4 +69,4 @@ class FileService {
   }
 }
 
-module.exports = new FileService();
+export default FileService.getInstance();

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config/constants';
 import {
   Box,
   Container,
@@ -34,6 +35,8 @@ interface TunnelConfig {
   bytesReceived?: number;
   bytesSent?: number;
   tags?: string[];
+  privateKey?: string;
+  privateKeyName?: string;
 }
 
 export function DashboardPage() {
@@ -82,7 +85,7 @@ export function DashboardPage() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('http://localhost:3000/api/tunnels', {
+      const response = await fetch(`${API_BASE_URL}/api/tunnels`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -101,12 +104,21 @@ export function DashboardPage() {
         throw new Error(errorData.message || '添加隧道失败');
       }
 
-      const data = await response.json();
-      console.log('获取到的隧道列表数据:', data);
-      // 将_id映射到id字段
+      // 添加成功后重新获取隧道列表
+      const listResponse = await fetch(`${API_BASE_URL}/api/tunnels`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!listResponse.ok) {
+        throw new Error('获取隧道列表失败');
+      }
+
+      const data = await listResponse.json();
       const tunnelsWithId = Array.isArray(data) ? data.map(tunnel => ({
         ...tunnel,
-        id: tunnel._id
+        id: tunnel.id
       })) : [];
       setTunnels(tunnelsWithId);
       setOpenDialog(false);
@@ -123,7 +135,7 @@ export function DashboardPage() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`http://localhost:3000/api/tunnels/${editingTunnel.id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/tunnels/${editingTunnel.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -156,7 +168,7 @@ export function DashboardPage() {
       const updatedTunnel = await response.json();
       console.log('更新后的隧道数据:', updatedTunnel);
       // 将_id映射到id字段
-      const tunnelWithId = { ...updatedTunnel, id: updatedTunnel._id };
+      const tunnelWithId = { ...updatedTunnel, id: updatedTunnel.id };
       setTunnels(tunnels.map(t => t.id === editingTunnel.id ? tunnelWithId : t));
       setEditDialogOpen(false);
       setEditingTunnel(null);
@@ -187,7 +199,7 @@ export function DashboardPage() {
         return;
       }
 
-      const response = await fetch(`http://localhost:3000/api/tunnels/${id}/${action}`, {
+      const response = await fetch(`${API_BASE_URL}/api/tunnels/${id}/${action}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -202,16 +214,50 @@ export function DashboardPage() {
       }
 
       if (!response.ok) {
-        throw new Error(`${action === 'connect' ? '连接' : '断开'}隧道失败`);
+        const errorData = await response.json();
+        // 检查是否是端口被占用的错误
+        if (errorData.message && errorData.message.includes('EADDRINUSE')) {
+          throw new Error(`端口 ${tunnel.localPort} 已被其他程序占用，请选择其他可用端口或关闭占用该端口的程序。`);
+        }
+        throw new Error(`${action === 'connect' ? '连接' : '断开'}隧道失败: ${errorData.message}`);
       }
 
       const updatedTunnel = await response.json();
-      console.log('切换状态后的隧道数据:', updatedTunnel);
       // 将_id映射到id字段
-      const tunnelWithId = { ...updatedTunnel, id: updatedTunnel._id };
+      const tunnelWithId = { ...updatedTunnel, id: updatedTunnel.id };
       setTunnels(tunnels.map(t => t.id === id ? tunnelWithId : t));
     } catch (err) {
       setError(err instanceof Error ? err.message : '操作隧道时发生错误');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteTunnel = async (id: string) => {
+    if (!checkAuthAndRedirect()) return;
+  
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(`${API_BASE_URL}/api/tunnels/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+  
+      if (response.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+  
+      if (!response.ok) {
+        throw new Error('删除隧道失败');
+      }
+  
+      setTunnels(tunnels.filter(t => t.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '删除隧道时发生错误');
     } finally {
       setLoading(false);
     }
@@ -224,7 +270,7 @@ export function DashboardPage() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch('http://localhost:3000/api/tunnels', {
+        const response = await fetch(`${API_BASE_URL}/api/tunnels`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
@@ -243,11 +289,16 @@ export function DashboardPage() {
         // 将_id映射到id字段
         const tunnelsWithId = Array.isArray(data) ? data.map(tunnel => ({
           ...tunnel,
-          id: tunnel._id
+          id: tunnel.id
         })) : [];
         setTunnels(tunnelsWithId);
+        // 只有在真正发生错误时才设置错误信息
+        setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : '获取隧道列表时发生错误');
+        // 只在真正的错误情况下显示错误信息
+        if (err instanceof Error && err.message !== '获取隧道列表为空') {
+          setError(err.message);
+        }
       } finally {
         setLoading(false);
       }
@@ -259,7 +310,7 @@ export function DashboardPage() {
   return (
     <Container maxWidth="md" sx={{ mt: 4 }}>
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
+        <Typography variant="h4" component="h1" gutterBottom sx={{ color: 'black' }}>
           SSH 隧道管理
         </Typography>
         <Button 
@@ -279,51 +330,72 @@ export function DashboardPage() {
 
       <Paper elevation={3}>
         <List>
-          {tunnels.map((tunnel) => (
-            <ListItem
-              key={tunnel.id}
-              sx={{
-                display: 'flex',
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                py: 2,
-                px: 3,
-                position: 'relative'
-              }}
-            >
-              <ListItemText
-                primary={tunnel.name}
-                secondary={`本地端口: ${tunnel.localPort} → ${tunnel.remoteHost}:${tunnel.remotePort} (通过 ${tunnel.sshUsername}@${tunnel.sshHost}:${tunnel.sshPort})`}
-                sx={{ mr: 2 }}
-              />
-              <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-                <Button
-                  variant="outlined"
-                  onClick={() => {
-                    setEditingTunnel({
-                      ...tunnel,
-                      privateKeyName: tunnel.privateKeyName || ''
-                    });
-                    setEditDialogOpen(true);
-                  }}
-                  disabled={loading || tunnel.status === 'connected'}
-                  size="medium"
-                >
-                  编辑
-                </Button>
-                <Button
-                  variant="contained"
-                  color={tunnel.status === 'connected' ? 'error' : 'primary'}
-                  onClick={() => handleToggleTunnel(tunnel.id)}
-                  disabled={loading}
-                  size="medium"
-                >
-                  {tunnel.status === 'connected' ? '断开' : '连接'}
-                </Button>
-              </Box>
+          {tunnels.length === 0 ? (
+            <ListItem sx={{ py: 4, justifyContent: 'center' }}>
+              <Typography color="text.secondary">
+                暂无隧道配置，点击上方"添加新隧道"按钮创建新的隧道
+              </Typography>
             </ListItem>
-          ))}
+          ) : (
+            tunnels.map(tunnel => (
+              <ListItem
+                key={tunnel.id}
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  py: 2,
+                  px: 3,
+                  position: 'relative'
+                }}
+              >
+                <ListItemText
+                  primary={tunnel.name}
+                  secondary={`本地端口: ${tunnel.localPort} → ${tunnel.remoteHost}:${tunnel.remotePort} (通过 ${tunnel.sshUsername}@${tunnel.sshHost}:${tunnel.sshPort})`}
+                  sx={{ mr: 2 }}
+                />
+                <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+                  <Button
+                    variant="outlined"
+                    onClick={() => {
+                      setEditingTunnel({
+                        ...tunnel,
+                        privateKeyName: tunnel.privateKeyName || ''
+                      });
+                      setEditDialogOpen(true);
+                    }}
+                    disabled={loading || tunnel.status === 'connected'}
+                    size="medium"
+                  >
+                    编辑
+                  </Button>
+                  <Button
+                    variant="contained"
+                    color={tunnel.status === 'connected' ? 'error' : 'primary'}
+                    onClick={() => handleToggleTunnel(tunnel.id)}
+                    disabled={loading}
+                    size="medium"
+                  >
+                    {tunnel.status === 'connected' ? '断开' : '连接'}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    onClick={() => {
+                      if (window.confirm('确定要删除这个隧道吗？')) {
+                        handleDeleteTunnel(tunnel.id);
+                      }
+                    }}
+                    disabled={loading || tunnel.status === 'connected'}
+                    size="medium"
+                  >
+                    删除
+                  </Button>
+                </Box>
+              </ListItem>
+            ))
+          )}
         </List>
       </Paper>
 
@@ -557,14 +629,20 @@ export function DashboardPage() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={passwordDialogOpen} onClose={() => {
-        setPasswordDialogOpen(false);
-        setConnectingTunnelId(null);
-        setTempPassword('');
-      }}>
+      <Dialog open={passwordDialogOpen} onClose={() => setPasswordDialogOpen(false)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && connectingTunnelId) {
+            handleToggleTunnel(connectingTunnelId, tempPassword);
+            setPasswordDialogOpen(false);
+            setTempPassword('');
+            setConnectingTunnelId(null);
+          }
+        }}
+      >
         <DialogTitle>输入SSH密码</DialogTitle>
         <DialogContent>
           <TextField
+            autoFocus
             margin="dense"
             label="SSH密码"
             type="password"
