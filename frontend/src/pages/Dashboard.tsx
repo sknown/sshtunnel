@@ -104,23 +104,9 @@ export function DashboardPage() {
         throw new Error(errorData.message || '添加隧道失败');
       }
 
-      // 添加成功后重新获取隧道列表
-      const listResponse = await fetch(`${API_BASE_URL}/api/tunnels`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      if (!listResponse.ok) {
-        throw new Error('获取隧道列表失败');
-      }
-
-      const data = await listResponse.json();
-      const tunnelsWithId = Array.isArray(data) ? data.map(tunnel => ({
-        ...tunnel,
-        id: tunnel.id
-      })) : [];
-      setTunnels(tunnelsWithId);
+      const newTunnelData = await response.json();
+      // 直接使用返回的新隧道数据更新状态
+      setTunnels(prevTunnels => [...prevTunnels, { ...newTunnelData, id: newTunnelData.id }]);
       setOpenDialog(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : '添加隧道时发生错误');
@@ -465,7 +451,7 @@ export function DashboardPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pem"
+            accept=".pem,.key,id_rsa,id_dsa,id_ecdsa,id_ed25519,.id"
             style={{ display: 'none' }}
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -581,7 +567,7 @@ export function DashboardPage() {
           <input
             ref={editFileInputRef}
             type="file"
-            accept=".pem"
+            accept=".pem,.key,id_rsa,id_dsa,id_ecdsa,id_ed25519,.id"
             style={{ display: 'none' }}
             onChange={(e) => {
               const file = e.target.files?.[0];

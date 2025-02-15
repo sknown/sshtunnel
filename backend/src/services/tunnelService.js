@@ -10,13 +10,16 @@ class TunnelService {
     this.localServers = new Map();
   }
 
-  async connect(tunnelId, userId) {
-    const tunnel = await Tunnel.findOne({ where: { id: tunnelId, userId } });
+  async connect(tunnelId, userId, tempPassword) {
+    console.log('[隧道连接] 开始连接隧道:', { tunnelId, userId });
+    const tunnel = await Tunnel.findById(tunnelId, userId);
     if (!tunnel) {
+      console.log('[隧道连接] 隧道配置未找到:', { tunnelId, userId });
       throw new Error('隧道配置未找到');
     }
 
     if (this.activeTunnels.has(tunnelId)) {
+      console.log('[隧道连接] 隧道已处于连接状态:', { tunnelId });
       throw new Error('隧道已经处于连接状态');
     }
 
@@ -33,6 +36,7 @@ class TunnelService {
               tunnel.remotePort,
               async (err, stream) => {
                 if (err) {
+                  console.error('[隧道连接] 端口转发失败:', err);
                   connection.end();
                   return;
                 }
@@ -40,11 +44,13 @@ class TunnelService {
                 connection.pipe(stream);
                 stream.pipe(connection);
 
-                connection.on('error', () => {
+                connection.on('error', (err) => {
+                  console.error('[隧道连接] 本地连接错误:', err);
                   stream.end();
                 });
 
-                stream.on('error', () => {
+                stream.on('error', (err) => {
+                  console.error('[隧道连接] 远程流错误:', err);
                   connection.end();
                 });
               }
@@ -60,7 +66,7 @@ class TunnelService {
             this.localServers.set(tunnelId, server);
             this.activeTunnels.set(tunnelId, sshClient);
             tunnel.status = 'connected';
-            await tunnel.save();
+            console.log('[隧道连接] 隧道连接成功');
             resolve(tunnel);
           });
         })
@@ -72,10 +78,11 @@ class TunnelService {
           host: tunnel.sshHost,
           port: tunnel.sshPort,
           username: tunnel.sshUsername,
-          password: tunnel.sshPassword,
+          password: tempPassword || tunnel.sshPassword,
           privateKey: tunnel.privateKeyPath ? await fileService.getPrivateKey(tunnel.privateKeyPath).catch(err => {
             throw new Error(`读取私钥文件失败: ${err.message}`);
           }) : tunnel.privateKey,
+          passphrase: tempPassword || tunnel.sshPassword,
           agent: process.env.SSH_AUTH_SOCK,
           agentForward: true
         });
@@ -83,7 +90,7 @@ class TunnelService {
   }
 
   async disconnect(tunnelId, userId) {
-    const tunnel = await Tunnel.findOne({ where: { id: tunnelId, userId } });
+    const tunnel = await Tunnel.findById(tunnelId, userId);
     if (!tunnel) {
       throw new Error('隧道配置未找到');
     }
@@ -100,13 +107,14 @@ class TunnelService {
       this.localServers.delete(tunnelId);
     }
 
-    tunnel.status = 'disconnected';
-    await tunnel.save();
+    if (tunnel) {
+      tunnel.status = 'disconnected';
+    }
     return tunnel;
   }
 
   async getTunnelStatus(tunnelId, userId) {
-    const tunnel = await Tunnel.findOne({ where: { id: tunnelId, userId } });
+    const tunnel = await Tunnel.findById(tunnelId, userId);
     if (!tunnel) {
       throw new Error('隧道配置未找到');
     }

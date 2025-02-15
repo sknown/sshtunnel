@@ -1,14 +1,14 @@
-import db from '../database/config.js';
+import db from '../../database/config.js';
 
 class TunnelModel {
   static async findAll(userId) {
     await db.read();
-    return db.data.tunnels.filter(tunnel => tunnel.userId === parseInt(userId));
+    return db.data.tunnels.filter(tunnel => tunnel.userId === userId);
   }
 
-  static async findById(id, userId) {
+  static async findById(id) {
     await db.read();
-    return db.data.tunnels.find(tunnel => tunnel.id === parseInt(id) && tunnel.userId === parseInt(userId));
+    return db.data.tunnels.find(tunnel => tunnel.id === id);
   }
 
   static async create(tunnelData) {
@@ -18,7 +18,6 @@ class TunnelModel {
     const tunnel = {
       id,
       ...tunnelData,
-      userId: parseInt(tunnelData.userId),
       status: 'disconnected',
       createdAt: new Date(),
       updatedAt: new Date()
@@ -29,10 +28,9 @@ class TunnelModel {
     return tunnel;
   }
 
-  static async update(id, tunnelData, userId) {
+  static async update(id, tunnelData) {
     await db.read();
-    const index = db.data.tunnels.findIndex(tunnel => tunnel.id === parseInt(id) && tunnel.userId === parseInt(userId));
-
+    const index = db.data.tunnels.findIndex(tunnel => tunnel.id === id);
     if (index === -1) return null;
 
     const tunnel = db.data.tunnels[index];
@@ -48,7 +46,7 @@ class TunnelModel {
 
   static async delete(id) {
     await db.read();
-    const index = db.data.tunnels.findIndex(tunnel => tunnel.id === parseInt(id));
+    const index = db.data.tunnels.findIndex(tunnel => tunnel.id === id);
     if (index === -1) return false;
 
     db.data.tunnels.splice(index, 1);
@@ -56,7 +54,9 @@ class TunnelModel {
     return true;
   }
 
+  static async updateStatus(id, status) {
+    return this.update(id, { status });
+  }
 }
-
 
 export default TunnelModel;

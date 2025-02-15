@@ -6,15 +6,26 @@ import jwt from 'jsonwebtoken';
 // 注册路由
 router.post('/register', async (req, res) => {
   try {
+    console.log('[注册] 收到注册请求:', { username: req.body.username });
+
     const { username, password } = req.body;
 
+    // 验证请求数据
+    if (!username || !password) {
+      console.log('[注册] 请求数据验证失败：用户名或密码为空');
+      return res.status(400).json({ message: '用户名和密码不能为空' });
+    }
+
     // 检查用户名是否已存在
-    const existingUser = await User.findOne({ where: { username } });
+    console.log('[注册] 检查用户名是否存在:', username);
+    const existingUser = await User.findByUsername(username);
     if (existingUser) {
+      console.log('[注册] 用户名已存在:', username);
       return res.status(400).json({ message: '用户名已存在' });
     }
 
     // 创建新用户
+    console.log('[注册] 开始创建新用户:', username);
     const user = await User.create({ username, password });
 
     // 生成 JWT token
@@ -27,6 +38,7 @@ router.post('/register', async (req, res) => {
       expiresIn: '24h'
     });
 
+    console.log('[注册] 用户创建成功:', { userId: user.id, username: user.username });
     res.status(201).json({
       message: '注册成功',
       token,
@@ -36,6 +48,7 @@ router.post('/register', async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('[注册] 发生错误:', error);
     res.status(500).json({ message: '服务器错误', error: error.message });
   }
 });
@@ -46,13 +59,13 @@ router.post('/login', async (req, res) => {
     const { username, password } = req.body;
 
     // 查找用户
-    const user = await User.findOne({ where: { username } });
+    const user = await User.findByUsername(username);
     if (!user) {
       return res.status(401).json({ message: '用户名或密码错误' });
     }
 
     // 验证密码
-    const isValidPassword = await user.comparePassword(password);
+    const isValidPassword = await User.comparePassword(user, password);
     if (!isValidPassword) {
       return res.status(401).json({ message: '用户名或密码错误' });
     }
@@ -76,6 +89,7 @@ router.post('/login', async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('[登录] 发生错误:', error);
     res.status(500).json({ message: '服务器错误', error: error.message });
   }
 });

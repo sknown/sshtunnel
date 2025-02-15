@@ -29,7 +29,6 @@ if (!requiredEnvVars.JWT_SECRET) {
 
 import express from 'express';
 import cors from 'cors';
-import sequelize from './database/config.js';
 import authRoutes from './routes/auth.js';
 import tunnelRoutes from './routes/tunnels.js';
 
@@ -38,22 +37,6 @@ const app = express();
 // 中间件配置
 app.use(cors());
 app.use(express.json());
-
-// 数据库连接配置
-const connectDB = async () => {
-  try {
-    console.log('正在初始化数据库...');
-    await sequelize.authenticate();
-    await sequelize.sync();
-    console.log('数据库连接成功');
-  } catch (error) {
-    console.error('数据库连接失败:', error.message);
-    process.exit(1);
-  }
-};
-
-// 初始连接数据库
-connectDB();
 
 // 路由配置
 app.use('/api/auth', authRoutes);

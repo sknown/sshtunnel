@@ -23,14 +23,14 @@ function createWindow() {
   if (process.env.NODE_ENV === 'development') {
     console.log('开发环境：加载开发服务器地址 http://localhost:5173');
     mainWindow.loadURL('http://localhost:5173');
+    // 在开发环境和生产环境中都打开开发者工具以便调试
+    mainWindow.webContents.openDevTools();
   } else {
     const indexPath = path.join(__dirname, '../dist/index.html');
     console.log('生产环境：加载本地文件', indexPath);
     mainWindow.loadFile(indexPath);
   }
 
-  // 在开发环境和生产环境中都打开开发者工具以便调试
-//   mainWindow.webContents.openDevTools();
 
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
     console.error('页面加载失败:', errorCode, errorDescription);

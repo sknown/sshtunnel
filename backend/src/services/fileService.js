@@ -23,9 +23,12 @@ class FileService {
     }
   }
 
-  async savePrivateKey(content) {
-    // 生成唯一的文件名
-    const fileName = crypto.randomBytes(16).toString('hex') + '.pem';
+  async savePrivateKey(content, originalFileName = '') {
+    // 从原始文件名中获取扩展名，如果没有提供或无扩展名则默认使用.pem
+    const ext = originalFileName ? path.extname(originalFileName) || '.pem' : '.pem';
+    
+    // 生成唯一的文件名并保留原始扩展名
+    const fileName = crypto.randomBytes(16).toString('hex') + ext;
     const filePath = path.join(this.uploadDir, fileName);
 
     // 写入文件
